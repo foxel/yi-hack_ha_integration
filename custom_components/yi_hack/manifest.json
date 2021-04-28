@@ -3,8 +3,8 @@
   "name": "Yi Home Cameras with yi-hack",
   "documentation": "https://github.com/roleoroleo/yi-hack_ha_integration",
   "issue_tracker": "https://github.com/roleoroleo/yi-hack_ha_integration/issues",
-  "dependencies": ["ffmpeg", "http", "media_source", "mqtt"],
-  "codeowners": ["@roleoroleo"],
+  "dependencies": ["ffmpeg", "http", "media_source", "mqtt", "cloud"],
+  "codeowners": ["@roleoroleo", "@foxel"],
   "iot_class": "local_push",
   "config_flow": true,
   "version": "0.3.9"
