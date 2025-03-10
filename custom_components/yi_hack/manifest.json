@@ -1,9 +1,9 @@
 {
   "domain": "yi_hack",
   "name": "Yi Home Cameras with yi-hack",
-  "codeowners": ["@roleoroleo"],
+  "codeowners": ["@roleoroleo", "@foxel"],
   "config_flow": true,
-  "dependencies": ["ffmpeg", "http", "media_source", "mqtt"],
+  "dependencies": ["ffmpeg", "http", "media_source", "mqtt", "cloud"],
   "documentation": "https://github.com/roleoroleo/yi-hack_ha_integration",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/roleoroleo/yi-hack_ha_integration/issues",

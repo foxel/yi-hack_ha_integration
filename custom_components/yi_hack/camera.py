@@ -9,6 +9,7 @@ from requests.auth import HTTPBasicAuth
 import voluptuous as vol
 from haffmpeg.camera import CameraMjpeg
 from haffmpeg.tools import IMAGE_JPEG, ImageFrame
+from hass_nabucasa.voice import MAP_VOICE, Gender
 from homeassistant.components import mqtt
 from homeassistant.components.camera import (Camera, CameraEntityFeature)
 from homeassistant.components.ffmpeg import CONF_EXTRA_ARGUMENTS, DATA_FFMPEG
@@ -84,14 +85,10 @@ async def async_setup_entry(hass: HomeAssistant, config: ConfigEntry, async_add_
             SERVICE_SPEAK,
             {
                 vol.Required(ATTR_LANGUAGE, default=DEFAULT_LANGUAGE): vol.In(
-                    [
-                        LANG_DE,
-                        LANG_GB,
-                        LANG_US,
-                        LANG_ES,
-                        LANG_FR,
-                        LANG_IT,
-                    ]
+                    {lang for lang, *_rest in MAP_VOICE}
+                ),
+                vol.Required(ATTR_GENDER, default=Gender.FEMALE): vol.In(
+                    [Gender.MALE, Gender.FEMALE]
                 ),
                 vol.Required(ATTR_SENTENCE, default=DEFAULT_SENTENCE): str,
             },
@@ -352,43 +349,26 @@ class YiHackCamera(Camera):
 
         await self.hass.async_add_executor_job(self._perform_move_to_preset, preset_id)
 
-    def _perform_speak(self, language, sentence):
-        response = None
-
-        auth = None
-        if self._user or self._password:
-            auth = HTTPBasicAuth(self._user, self._password)
-
-        try:
-            url_speak = "http://" + self._host + ":" + str(self._port) + "/cgi-bin/speak.sh?lang=" + language
-            if self._boost_speaker == "auto":
-                if self._hack_name == MSTAR:
-                    url_speak = "http://" + self._host + ":" + str(self._port) + "/cgi-bin/speak.sh?lang=" + language + "&vol=4";
-                elif self._hack_name == ALLWINNERV2:
-                    url_speak = "http://" + self._host + ":" + str(self._port) + "/cgi-bin/speak.sh?lang=" + language + "&vol=3";
-            elif self._boost_speaker != "disabled":
-                url_speak = "http://" + self._host + ":" + str(self._port) + "/cgi-bin/speak.sh?lang=" + language + "&vol=" + str(self._boost_speaker[-1]);
-
-            response = requests.post(url_speak, data=sentence, timeout=HTTP_TIMEOUT, auth=auth)
-            if response.status_code >= 300:
-                _LOGGER.error("Failed to send speak command to device %s", self._host)
-        except requests.exceptions.RequestException as error:
-            _LOGGER.error("Failed to send speak command to device %s: error %s", self._host, error)
-
-        if response is not None:
-            try:
-                if response.json()["error"] == "true":
-                    _LOGGER.error("Failed to send speak command to device %s: error %s", self._host, response.json()["description"])
-            except KeyError:
-                _LOGGER.error("Failed to send speak command to device %s: error unknown", self._host)
-        else:
-            _LOGGER.error("Failed to send speak command to device %s: error unknown", self._host)
-
-    async def async_perform_speak(self, language, sentence):
+    async def async_perform_speak(self, language: str, gender: Gender, sentence: str):
         """Perform a SPEAK action on the camera."""
         _LOGGER.debug("SPEAK action on %s", self._name)
 
-        await self.hass.async_add_executor_job(self._perform_speak, language, sentence)
+        audio = await _get_tts_audio_from_hass_cloud(self.hass, language, gender, sentence)
+
+        def send_request():
+            auth = None
+            if self._user or self._password:
+                auth = HTTPBasicAuth(self._user, self._password)
+
+            try:
+                url = "http://" + self._host + ":" + str(self._port) + "/cgi-bin/speaker.sh"
+                response = requests.post(url, data=audio, timeout=5, auth=auth)
+                if response.status_code >= 300:
+                    _LOGGER.error("Failed to send speaker command to device %s", self._host)
+            except requests.exceptions.RequestException as error:
+                _LOGGER.error("Failed to send speaker command to device %s: error %s", self._host, error)
+
+        await self.hass.async_add_executor_job(send_request)
 
     def _perform_reboot(self):
         auth = None
@@ -591,3 +571,49 @@ class YiHackMqttCamera(Camera):
             "manufacturer": DEFAULT_BRAND,
             "model": DOMAIN,
         }
+
+
+async def _get_tts_audio_from_hass_cloud(
+        hass: HomeAssistant, language: str, gender: Gender, sentence: str
+):
+    """Get Speech from text over Azure. see: hass_nabucasa.voice.Voice.process_tts."""
+    import xml.etree.ElementTree as ET
+
+    from aiohttp.hdrs import AUTHORIZATION, CONTENT_TYPE
+    from hass_nabucasa import Cloud, Voice
+
+    from homeassistant.components.cloud import DOMAIN as CLOUD_DOMAIN
+
+    cloud: Cloud = hass.data[CLOUD_DOMAIN]
+    tts: Voice = cloud.voice
+
+    """Get Speech from text over Azure."""
+    if not tts._validate_token():
+        await tts._update_token()
+
+    # SSML
+    xml_body = ET.Element("speak", version="1.0")
+    xml_body.set("{http://www.w3.org/XML/1998/namespace}lang", language)
+    voice = ET.SubElement(xml_body, "voice")
+    voice.set("{http://www.w3.org/XML/1998/namespace}lang", language)
+    voice.set(
+        "name",
+        f"Microsoft Server Speech Text to Speech Voice ({language}, {MAP_VOICE[(language, gender)]})",
+    )
+    voice.text = sentence[:2048]
+
+    # Send request
+    async with cloud.websession.post(
+            tts._endpoint_tts,
+            headers={
+                CONTENT_TYPE: "application/ssml+xml",
+                AUTHORIZATION: f"Bearer {tts._token}",
+                "X-Microsoft-OutputFormat": "raw-16khz-16bit-mono-pcm",
+            },
+            data=ET.tostring(xml_body),
+    ) as resp:
+        if resp.status != 200:
+            _LOGGER.error("Failed to call TTS")
+            return None
+        return await resp.read()
+

@@ -75,21 +75,73 @@ speak:
           domain: camera
     language:
       name: Language
-      description: "Language of the TTS engine. Allowed values: de-DE, en-GB, en-US, es-ES, fr-FR, it-IT. Default: en-US"
+      description: "Language of the TTS engine"
       required: true
       example: "en-US"
       selector:
         select:
           options:
+            - "ar-EG"
+            - "ar-SA"
+            - "bg-BG"
+            - "ca-ES"
+            - "cs-CZ"
+            - "da-DK"
+            - "de-AT"
+            - "de-CH"
             - "de-DE"
+            - "el-GR"
+            - "en-AU"
+            - "en-CA"
             - "en-GB"
+            - "en-IE"
+            - "en-IN"
             - "en-US"
             - "es-ES"
+            - "es-MX"
+            - "fi-FI"
+            - "fr-CA"
+            - "fr-CH"
             - "fr-FR"
+            - "he-IL"
+            - "hi-IN"
+            - "hr-HR"
+            - "hu-HU"
+            - "id-ID"
             - "it-IT"
+            - "ja-JP"
+            - "ko-KR"
+            - "ms-MY"
+            - "nb-NO"
+            - "nl-NL"
+            - "pl-PL"
+            - "pt-BR"
+            - "pt-PT"
+            - "ro-RO"
+            - "ru-RU"
+            - "sk-SK"
+            - "sl-SI"
+            - "sv-SE"
+            - "ta-IN"
+            - "te-IN"
+            - "th-TH"
+            - "tr-TR"
+            - "vi-VN"
+            - "zh-CN"
+            - "zh-HK"
+            - "zh-TW"
+    gender:
+      description: "Gender of the TTS engine"
+      required: true
+      example: "en-US"
+      selector:
+        select:
+          options:
+            - "male"
+            - "female"
     sentence:
       name: Sentence to pronounce
-      description: "Sentence to pronounce."
+      description: "Sentence to pronounce"
       required: true
       example: "Hello world!"
       selector:
